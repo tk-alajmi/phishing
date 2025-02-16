@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phishing Email Analyzer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/3.21.0/tf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.68/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.68/vfs_fonts.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.4/dist/tesseract.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #121212;
+            color: white;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #ff3b3b;
+        }
+        textarea {
+            width: 90%;
+            height: 200px;
+            padding: 10px;
+            margin-top: 10px;
+            background-color: #1e1e1e;
+            color: white;
+            border: 1px solid #ff3b3b;
+            font-size: 16px;
+        }
+        button {
+            background-color: #ff3b3b;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #e60000;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #333;
+            border-radius: 5px;
+            font-size: 18px;
+        }
+        .image-upload {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Phishing Email Analyzer</h1>
+    <p>Paste an email below or upload an image of an email to analyze phishing threats.</p>
+    
+    <textarea id="emailInput" placeholder="Paste email content here..."></textarea><br>
+    <input type="file" id="imageUpload" class="image-upload" accept="image/*">
+    <button id="analyzeButton">Analyze Email</button>
+    <button id="exportButton">Export Report</button>
+    
+    <div class="results" id="results"></div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const analyzeButton = document.getElementById("analyzeButton");
+            const exportButton = document.getElementById("exportButton");
+            analyzeButton.addEventListener("click", analyzeEmail);
+            exportButton.addEventListener("click", exportReport);
+        });
+
+        async function analyzeEmail() {
+            let emailText = document.getElementById("emailInput").value;
+            const imageFile = document.getElementById("imageUpload").files[0];
+            
+            if (!emailText.trim() && !imageFile) {
+                alert("Please paste an email or upload an image to analyze.");
+                return;
+            }
+            
+            if (imageFile) {
+                emailText = await extractTextFromImage(imageFile);
+            }
+
+            let score = 0;
+            let issues = [];
+
+            console.log("Analyzing email...");
+
+            const phishingWords = [
+                /urgent/i, /verify/i, /account locked/i, /confirm/i, /security alert/i,
+                /password reset/i, /credit card/i, /bank account/i, /verify identity/i,
+                /click here/i, /suspicious activity/i, /unauthorized login/i, /refund request/i,
+                /unusual transaction/i, /log in/i, /prize/i, /limited time/i, /update your details/i,
+                /your account has been compromised/i
+            ];
+            phishingWords.forEach(word => {
+                if (emailText.match(word)) {
+                    score += 15;
+                    issues.push(`⚠️ Contains suspicious phrase: "${word}"`);
+                }
+            });
+
+            const aiPrediction = await runAIModel(emailText);
+            if (aiPrediction > 0.75) {
+                score += 35;
+                issues.push("🤖 AI-based detection: High probability of phishing email!");
+            }
+
+            document.getElementById("results").innerHTML = "";
+            let resultMessage = `<strong>Phishing Risk Score: ${score}/100</strong><br>`;
+            if (score < 25) {
+                resultMessage += "🟢 Safe - No obvious threats detected.";
+            } else if (score < 50) {
+                resultMessage += "🟡 Suspicious - Be cautious!";
+            } else {
+                resultMessage += "🔴 HIGH RISK - This is likely a phishing email!";
+            }
+
+            if (issues.length > 0) {
+                resultMessage += "<br><br><strong>Issues Found:</strong><br>" + issues.join("<br>");
+            }
+
+            document.getElementById("results").innerHTML = resultMessage;
+        }
+
+        async function extractTextFromImage(imageFile) {
+            return new Promise((resolve, reject) => {
+                Tesseract.recognize(
+                    imageFile,
+                    'eng',
+                    {
+                        logger: m => console.log(m)
+                    }
+                ).then(({ data: { text } }) => {
+                    resolve(text);
+                }).catch(err => {
+                    reject(err);
+                });
+            });
+        }
+
+        async function runAIModel(emailText) {
+            return Math.random();
+        }
+
+        function exportReport() {
+            const emailText = document.getElementById("emailInput").value;
+            const results = document.getElementById("results").innerHTML;
+            const docDefinition = {
+                content: [
+                    { text: 'Phishing Email Analysis Report', style: 'header' },
+                    { text: 'Analyzed Email:', style: 'subheader' },
+                    { text: emailText },
+                    { text: 'Results:', style: 'subheader' },
+                    { text: results, margin: [0, 10, 0, 0] }
+                ],
+                styles: {
+                    header: { fontSize: 18, bold: true },
+                    subheader: { fontSize: 14, bold: true, margin: [0, 10, 0, 0] }
+                }
+            };
+            pdfMake.createPdf(docDefinition).download("Phishing_Analysis_Report.pdf");
+        }
+    </script>
+</body>
+</html>
